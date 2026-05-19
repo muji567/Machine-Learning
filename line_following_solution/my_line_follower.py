@@ -76,13 +76,46 @@ class MyLineFollower(LineFollowingInterface):
         Returns:
             Steering value in [-1.0, 1.0], or None if line not detected.
         """
-        _ = image
-        test_steering = -0.75
-        self._frame_count += 1
-        if self._frame_count % 30 == 0:
-            self.get_logger().info(f"TEST MODE steer={test_steering:.2f} frame={self._frame_count}")
-        self.show_notification(f"TEST MODE steer={test_steering:.2f}")
-        return test_steering
+        # Convert to HSV (more robust to lighting)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # Green in HSV: H ≈ 60-90 (roughly)
+        lower_green = np.array([40, 40, 40])
+        upper_green = np.array([90, 255, 255])
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+
+        # Dilate to connect nearby points
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        # Find contours
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if not contours or cv2.contourArea(max(contours, key=cv2.contourArea)) < 100:
+            self.show_warning("No line detected")
+            return None
+
+        largest_contour = max(contours, key=cv2.contourArea)
+
+        # Fit a line to the contour
+        rows, cols = mask.shape[:2]
+        [vx, vy, x, y] = cv2.fitLine(largest_contour, cv2.DIST_L2, 0, 0.01, 0.01)
+
+        center_row = rows // 2
+        if abs(vy) > 0.01:
+            line_x_at_center = x + (center_row - y) * (vx / vy)
+        else:
+            M = cv2.moments(largest_contour)
+            line_x_at_center = M["m10"] / M["m00"] if M["m00"] > 0 else cols // 2
+
+        # Calculate steering
+        image_center_x = cols / 2.0
+        offset = float(np.squeeze(line_x_at_center - image_center_x) / image_center_x)
+        steering = float(np.clip(offset * 0.5, -1.0, 1.0))
+
+        self.show_notification(f"steer={steering:.2f}")
+        return steering
 
 
 def main(args=None):
