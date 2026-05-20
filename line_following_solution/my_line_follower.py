@@ -62,9 +62,9 @@ class MyLineFollower(LineFollowingInterface):
     def __init__(self):
         super().__init__("my_line_follower")
         self._frame_count = 0
-        
+        self.on_camera_image(self.detect_line)
         # Load trained SVM model
-        model_path = os.path.join("../", "team5_svm_final.pkl")
+        model_path = os.path.join("team5_svm_final.pkl")
         self.svm = joblib.load(model_path)
         self.get_logger().info("SVM model loaded successfully.")
         

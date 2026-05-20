@@ -21,11 +21,13 @@ services:
     network_mode: host
     command: --listen tcp/0.0.0.0:7447
     restart: unless-stopped
+    profiles: [bag]
 
 
   bag-replay:
     build: .
     network_mode: host
+    profiles: [bag]
     shm_size: "512m"
     environment:
       - RMW_IMPLEMENTATION=rmw_zenoh_cpp
@@ -51,8 +53,7 @@ services:
       echo \"Playing bag: $$BAG_PATH\" &&
       ros2 bag play \"$$BAG_PATH\" --loop
       "
-    depends_on:
-      - zenoh-router-bag
+
 
   line-follower:
     build: .
@@ -64,10 +65,8 @@ services:
       - ZENOH_ROUTER_CHECK_ATTEMPTS=30
       - ROS_DOMAIN_ID=0
       - ROLE_NAME=${ROLE_NAME:-hero}
-      - DEFAULT_THROTTLE=${DEFAULT_THROTTLE:-0.35}
+      - DEFAULT_THROTTLE=0.5
       - PYTHONPATH=/app
-    depends_on:
-      - zenoh-router-bag
     command: >
       bash -c "
       sleep 2 &&
