@@ -125,8 +125,10 @@ class MyLineFollower(LineFollowingInterface):
 
         # Step 8 — Convert prediction to steering value
         # -1 = LEFT, 0 = STRAIGHT, 1 = RIGHT
-        steering_map = {-1: -0.5, 0: 0.0, 1: 0.5}
-        steering = float(steering_map.get(prediction, 0.0))
+        if prediction == 0:
+            steering = 0.0
+        else:
+            steering = float(np.clip(offset * 0.5, -1.0, 1.0))
 
         self.show_notification(f"steer={steering:.2f} pred={prediction}")
         return steering
