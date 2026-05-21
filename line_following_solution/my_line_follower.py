@@ -90,6 +90,11 @@ class MyLineFollower(LineFollowingInterface):
         # Step 1 — Convert to HSV
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
+        # Step 1b — Crop to ROI (bottom 55% of image)
+        h, w = hsv.shape[:2]
+        roi_start = int(h * 0.45)
+        hsv = hsv[roi_start:, :]
+
         # Step 2 — Green color mask
         lower_green = np.array([40, 40, 40])
         upper_green = np.array([90, 255, 255])
