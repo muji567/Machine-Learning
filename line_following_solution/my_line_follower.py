@@ -111,10 +111,10 @@ class MyLineFollower(LineFollowingInterface):
         )
 
         if not contours or cv2.contourArea(max(contours, key=cv2.contourArea)) < 100:
-        self.show_warning("No line detected")
-        self._integral = 0.0
-        self._prev_error = 0.0
-        return 0.0
+            self.show_warning("No line detected")
+            self._integral = 0.0
+            self._prev_error = 0.0
+            return 0.0
 
 
         largest_contour = max(contours, key=cv2.contourArea)
