@@ -61,7 +61,7 @@ class MyLineFollower(LineFollowingInterface):
         super().__init__("my_line_follower")
 
         # ── PID gains ────────────────────────────────────────────────────────
-        self._Kp = 0.25   # proportional — how hard to correct
+        self._Kp = 0.55   # proportional — how hard to correct
         self._Ki = 0.003  # integral     — corrects long-term drift
         self._Kd = 0.18   # derivative   — dampens overshoot on curves
 
