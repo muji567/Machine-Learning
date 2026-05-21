@@ -44,10 +44,11 @@ HELPERS
     self.show_alert(text)         red    — critical
     self.current_image            latest camera frame (or None)
 """
-cv2          # type: ignore
+import cv2          # type: ignore
 import numpy as np  # type: ignore
 import rclpy        # type: ignore
 import joblib       # type: ignore
+from collections import deque
 import os
 
 from .interface import LineFollowingInterface
@@ -61,7 +62,19 @@ class MyLineFollower(LineFollowingInterface):
     def __init__(self):
         super().__init__("my_line_follower")
         self._frame_count = 0
-        self.on_camera_image(self.detect_line)
+        
+        self._Kp = 0.42      
+        self._Ki = 0.003      
+        self._Kd = 0.45       
+        
+        self._prev_error = 0.0
+        self._integral   = 0.0
+        
+        self._alpha      = 0.45
+        self._prev_steer = 0.0
+        
+        self._offset_buffer = deque(maxlen=5)
+
         # Load trained SVM model
         model_path = os.path.join("team5_svm_final.pkl")
         self.svm = joblib.load(model_path)
@@ -71,65 +84,76 @@ class MyLineFollower(LineFollowingInterface):
         self.get_logger().info("MyLineFollower initialized — SVM ready")
 
     def detect_line(self, image: np.ndarray) -> float | None:
-        """
-        Detect the green line using HSV masking and steer using trained SVM.
-        
-        Args:
-            image: BGR image from camera, shape (720, 1280, 3)
-        
-        Returns:
-            Steering value in [-1.0, 1.0], or None if line not detected.
-        """
-        # Step 1 — Convert to HSV
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        self._frame_count += 1
+        h, w = image.shape[:2]
 
-        # Step 2 — Green color mask
-        lower_green = np.array([40, 40, 40])
-        upper_green = np.array([90, 255, 255])
-        mask = cv2.inRange(hsv, lower_green, upper_green)
+        # 1. ROI & Color Filtering
+        roi = image[int(h * 0.45):, :]
+        rh, rw = roi.shape[:2]
+        hsv  = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, np.array([35, 50, 50]), np.array([85, 255, 255]))
 
-        # Step 3 — Reduce noise
+        # Clean noise
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-        # Step 4 — Find contours
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-
-        if not contours or cv2.contourArea(max(contours, key=cv2.contourArea)) < 100:
-            self.show_warning("No line detected")
-            return None
+        # 2. Extract Line Center
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours or cv2.contourArea(max(contours, key=cv2.contourArea)) < 150:
+            self._prev_steer *= 0.80  # Smooth steering decay fallback
+            return float(self._prev_steer)
 
         largest_contour = max(contours, key=cv2.contourArea)
-
-        # Step 5 — Find line center using fitLine
-        rows, cols = mask.shape[:2]
-        [vx, vy, x, y] = cv2.fitLine(largest_contour, cv2.DIST_L2, 0, 0.01, 0.01)
-
-        center_row = rows // 2
-        if abs(vy) > 0.01:
-            line_x_at_center = x + (center_row - y) * (vx / vy)
+        lookahead_strip = mask[int(0.70 * rh):, :]
+        
+        if cv2.countNonZero(lookahead_strip) < 20:
+            moments = cv2.moments(largest_contour)
+            if moments["m00"] == 0: return float(self._prev_steer)
+            cx = moments["m10"] / moments["m00"]
         else:
-            M = cv2.moments(largest_contour)
-            line_x_at_center = M["m10"] / M["m00"] if M["m00"] > 0 else cols // 2
+            _, xx = np.mgrid[0:lookahead_strip.shape[0], 0:rw]
+            cx = float((lookahead_strip * xx).sum() / (lookahead_strip.sum() + 1e-8))
 
-        # Step 6 — Calculate offset feature
-        image_center_x = cols / 2.0
-        offset = float(np.squeeze(line_x_at_center - image_center_x) / image_center_x)
+        # 3. Running Median Smoothing
+        raw_offset = (cx - rw / 2.0) / (rw / 2.0)
+        self._offset_buffer.append(raw_offset)
+        smooth_offset = float(np.median(self._offset_buffer))
 
-        # Step 7 — Use SVM to predict steering class
-        prediction = int(self.svm.predict([[offset]])[0])
+        # 4. Balanced 5-Class Model Prediction Gating
+        prediction = int(self.svm.predict([[smooth_offset]])[0])
 
-        # Step 8 — Convert prediction to steering value
-        # -1 = LEFT, 0 = STRAIGHT, 1 = RIGHT
-        steering_map = {-1: -0.5, 0: 0.0, 1: 0.5}
-        steering = float(steering_map.get(prediction, 0.0))
+        # 5. Actuator Command Formulation (PID Loop)
+        if prediction == 0:
+            self._integral  *= 0.4
+            self._prev_error = 0.0
+            raw_steer        = 0.0
+        else:
+            self._integral += smooth_offset
+            self._integral  = float(np.clip(self._integral, -4.0, 4.0))
+            derivative      = smooth_offset - self._prev_error
+            self._prev_error = smooth_offset
 
-        self.show_notification(f"steer={steering:.2f} pred={prediction}")
-        return steering
+            base_pid_steer = (self._Kp * smooth_offset +
+                              self._Ki * self._integral +
+                              self._Kd * derivative)
 
+            # Boost steering by 40% if model identifies a HARD turn (-2 or 2)
+            if abs(prediction) == 2:
+                base_pid_steer *= 1.40
+
+            raw_steer = float(np.clip(base_pid_steer, -1.0, 1.0))
+
+        # 6. Apply Temporal Smoothing (EMA)
+        final_steer = self._alpha * raw_steer + (1.0 - self._alpha) * self._prev_steer
+        self._prev_steer = final_steer
+
+        # Telemetry Notifications
+        if self._frame_count % 30 == 0:
+            self.get_logger().info(f"RUNNING: steer={final_steer:+.2f} class={prediction} frame={self._frame_count}")
+        self.show_notification(f"offset={smooth_offset:+.2f} class={prediction} steer={final_steer:+.2f}")
+        
+        return float(np.clip(final_steer, -1.0, 1.0))
 
 def main(args=None):
     """Main entry point for the line follower node."""
