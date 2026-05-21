@@ -63,9 +63,11 @@ class MyLineFollower(LineFollowingInterface):
         super().__init__("my_line_follower")
         self._frame_count = 0
 
-        self._prev_steer = 0.0
-        self._ALPHA = 0.35
-        self._CLASS_MAP = {-1: -0.4, 0: 0.0, 1: 0.4}
+        self._Kp = 0.4
+        self._Ki = 0.01
+        self._Kd = 0.1
+        self._prev_error = 0.0
+        self._integral = 0.0
     
         # Load trained SVM model
         model_path = os.path.join("team5_svm_final.pkl")
@@ -105,8 +107,7 @@ class MyLineFollower(LineFollowingInterface):
 
         if not contours or cv2.contourArea(max(contours, key=cv2.contourArea)) < 100:
             self.show_warning("No line detected")
-            self._prev_steer *= 0.85
-            return float(self._prev_steer)
+            return None
 
         largest_contour = max(contours, key=cv2.contourArea)
 
@@ -128,11 +129,24 @@ class MyLineFollower(LineFollowingInterface):
         # Step 7 — Use SVM to predict steering class
         prediction = int(self.svm.predict([[offset]])[0])
 
-        # Step 8 — Exponential smoothing
-        raw_steer = self._CLASS_MAP.get(prediction, 0.0)
-        smooth = self._ALPHA * raw_steer + (1 - self._ALPHA) * self._prev_steer
-        self._prev_steer = smooth
-        steering = float(np.clip(smooth, -1.0, 1.0))
+        # Step 8 — PID Controller
+        error = offset
+
+        if prediction == 0:
+            self._integral = 0.0
+            self._prev_error = 0.0
+            steering = 0.0
+        else:
+            self._integral += error
+            derivative = error - self._prev_error
+            self._prev_error = error
+
+            steering = float(np.clip(
+                self._Kp * error +
+                self._Ki * self._integral +
+                self._Kd * derivative,
+                -1.0, 1.0
+            ))
 
         self.show_notification(f"steer={steering:.2f} pred={prediction}")
         return steering
