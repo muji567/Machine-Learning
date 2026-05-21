@@ -114,7 +114,7 @@ class MyLineFollower(LineFollowingInterface):
             self.show_warning("No line detected")
             self._integral = 0.0
             self._prev_error = 0.0
-            return 0.0
+            return none
 
 
         largest_contour = max(contours, key=cv2.contourArea)
