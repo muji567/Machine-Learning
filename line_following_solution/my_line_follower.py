@@ -116,20 +116,19 @@ class MyLineFollower(LineFollowingInterface):
 
         largest_contour = max(contours, key=cv2.contourArea)
 
-        # Step 5 — Find line center using fitLine
-        rows, cols = mask.shape[:2]
-        [vx, vy, x, y] = cv2.fitLine(largest_contour, cv2.DIST_L2, 0, 0.01, 0.01)
+        # Step 5 & 6 — Calculate bottom_offset
+        # (from Lab07 extract_extended_features)
+        h, w = mask.shape
+        bottom = mask[int(0.70*h):, :].astype(float)
+        eps = 1e-8
 
-        center_row = rows // 2
-        if abs(vy) > 0.01:
-            line_x_at_center = x + (center_row - y) * (vx / vy)
-        else:
-            M = cv2.moments(largest_contour)
-            line_x_at_center = M["m10"] / M["m00"] if M["m00"] > 0 else cols // 2
+        if bottom.sum() < eps:
+            return None
 
-        # Step 6 — Calculate offset feature
-        image_center_x = cols / 2.0
-        offset = float(np.squeeze(line_x_at_center - image_center_x) / image_center_x)
+        _, xx = np.mgrid[0:bottom.shape[0], 0:w]
+        cx_bottom = (bottom * xx).sum() / (bottom.sum() + eps)
+        offset = float((cx_bottom - w/2) / (w/2))
+        offset = float(np.clip(offset, -1.0, 1.0))
 
         # Step 7 — Use SVM to predict steering class
         prediction = int(self.svm.predict([[offset]])[0])
