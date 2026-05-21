@@ -44,31 +44,35 @@ HELPERS
     self.show_alert(text)         red    — critical
     self.current_image            latest camera frame (or None)
 """
-import cv2          # type: ignore
+cv2          # type: ignore
 import numpy as np  # type: ignore
 import rclpy        # type: ignore
+import joblib       # type: ignore
+import os
 
 from .interface import LineFollowingInterface
 
 
 class MyLineFollower(LineFollowingInterface):
     """
-    Student implementation of line following.
-    
-    Detect a green line and steer to stay centered on it.
+    Student implementation of line following using trained SVM.
     """
 
     def __init__(self):
         super().__init__("my_line_follower")
         self._frame_count = 0
-        
-        # Register camera callback
         self.on_camera_image(self.detect_line)
-        self.get_logger().info("MyLineFollower initialized — ready to detect green line")
+        # Load trained SVM model
+        model_path = os.path.join("team5_svm_final.pkl")
+        self.svm = joblib.load(model_path)
+        self.get_logger().info("SVM model loaded successfully.")
+        
+        self.on_camera_image(self.detect_line)
+        self.get_logger().info("MyLineFollower initialized — SVM ready")
 
     def detect_line(self, image: np.ndarray) -> float | None:
         """
-        Detect the green line and return steering command.
+        Detect the green line using HSV masking and steer using trained SVM.
         
         Args:
             image: BGR image from camera, shape (720, 1280, 3)
@@ -76,13 +80,55 @@ class MyLineFollower(LineFollowingInterface):
         Returns:
             Steering value in [-1.0, 1.0], or None if line not detected.
         """
-        _ = image
-        test_steering = -0.75
-        self._frame_count += 1
-        if self._frame_count % 30 == 0:
-            self.get_logger().info(f"TEST MODE steer={test_steering:.2f} frame={self._frame_count}")
-        self.show_notification(f"TEST MODE steer={test_steering:.2f}")
-        return test_steering
+        # Step 1 — Convert to HSV
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # Step 2 — Green color mask
+        lower_green = np.array([40, 40, 40])
+        upper_green = np.array([90, 255, 255])
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+
+        # Step 3 — Reduce noise
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        # Step 4 — Find contours
+        contours, _ = cv2.findContours(
+            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        if not contours or cv2.contourArea(max(contours, key=cv2.contourArea)) < 100:
+            self.show_warning("No line detected")
+            return None
+
+        largest_contour = max(contours, key=cv2.contourArea)
+
+        # Step 5 — Find line center using fitLine
+        rows, cols = mask.shape[:2]
+        [vx, vy, x, y] = cv2.fitLine(largest_contour, cv2.DIST_L2, 0, 0.01, 0.01)
+
+        center_row = rows // 2
+        if abs(vy) > 0.01:
+            line_x_at_center = x + (center_row - y) * (vx / vy)
+        else:
+            M = cv2.moments(largest_contour)
+            line_x_at_center = M["m10"] / M["m00"] if M["m00"] > 0 else cols // 2
+
+        # Step 6 — Calculate offset feature
+        image_center_x = cols / 2.0
+        offset = float(np.squeeze(line_x_at_center - image_center_x) / image_center_x)
+
+        # Step 7 — Use SVM to predict steering class
+        prediction = int(self.svm.predict([[offset]])[0])
+
+        # Step 8 — Convert prediction to steering value
+        # -1 = LEFT, 0 = STRAIGHT, 1 = RIGHT
+        steering_map = {-1: -0.5, 0: 0.0, 1: 0.5}
+        steering = float(steering_map.get(prediction, 0.0))
+
+        self.show_notification(f"steer={steering:.2f} pred={prediction}")
+        return steering
 
 
 def main(args=None):
