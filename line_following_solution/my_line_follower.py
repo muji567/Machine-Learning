@@ -63,7 +63,7 @@ class MyLineFollower(LineFollowingInterface):
         super().__init__("my_line_follower")
         self._frame_count = 0
 
-        self._Kp = 0.3
+        self._Kp = 0.25
         self._Ki = 0.01
         self._Kd = 0.1
         self._prev_error = 0.0
@@ -111,8 +111,11 @@ class MyLineFollower(LineFollowingInterface):
         )
 
         if not contours or cv2.contourArea(max(contours, key=cv2.contourArea)) < 100:
-            self.show_warning("No line detected")
-            return None
+        self.show_warning("No line detected")
+        self._integral = 0.0
+        self._prev_error = 0.0
+        return 0.0
+
 
         largest_contour = max(contours, key=cv2.contourArea)
 
@@ -142,6 +145,7 @@ class MyLineFollower(LineFollowingInterface):
             steering = 0.0
         else:
             self._integral += error
+            self._integral = float(np.clip(self._integral, -1.0, 1.0))  # ← add here
             derivative = error - self._prev_error
             self._prev_error = error
 
