@@ -63,7 +63,7 @@ class MyLineFollower(LineFollowingInterface):
         super().__init__("my_line_follower")
         self._frame_count = 0
 
-        self._Kp = 0.4
+        self._Kp = 0.3
         self._Ki = 0.01
         self._Kd = 0.1
         self._prev_error = 0.0
