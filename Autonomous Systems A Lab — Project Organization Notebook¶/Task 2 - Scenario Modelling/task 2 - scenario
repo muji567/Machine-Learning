@@ -1,0 +1,80 @@
+Task 2: Scenario Modelling
+Scenario 1: Normal Platooning
+Description
+Two trucks are driving on a straight road in normal platooning mode. The leader truck drives at a constant speed while the follower truck uses its camera and the lane detection model to stay within the lane and maintain a safe following distance. Both trucks are communicating continuously via the wireless link. This is the normal scenario  everything is working as expected.
+Functional requirements
+•	FR1: The follower truck must continuously receive speed and position signals from the leader truck
+•	FR2: The follower truck must use camera input to detect lane markings and stay within the lane
+•	FR3: The follower truck must maintain a minimum following distance of 5 metres from the leader
+•	FR4: The follower truck must adjust its speed to match the leader truck in real time
+Timing requirements
+•	TR1: The camera must capture and process frames at 30 FPS, meaning each frame must be fully processed within 33ms
+•	TR2: The steering correction based on lane detection must be applied within one frame cycle (33ms) to avoid drift
+•	TR3: Speed synchronisation signals must be sent and received within 100ms to maintain safe distance
+Safety requirements
+•	SR1: If the following distance drops below 5 metres, the follower truck must automatically reduce speed
+•	SR2: If lane markings cannot be detected for more than 3 consecutive frames, the truck must slow down and alert
+•	SR3: The system must not accelerate beyond the leader truck's speed under any condition
+Assumptions
+•	The road is straight with clearly visible lane markings
+•	Lighting conditions are adequate for camera based lane detection
+•	No obstacles or other vehicles are present on the road
+•	The wireless communication link between trucks is stable and uninterrupted
+•	Both trucks start the scenario already in position and at the same speed
+
+
+
+Scenario 2: Communication Failure
+Description
+During normal platooning, the wireless link between the leader and follower truck suddenly drops. The follower truck stops receiving speed and position signals from the leader. The follower must detect this signal loss within 500ms and automatically switch to a safe fallback mode, slowing down gradually and independently until communication is restored or the truck comes to a safe stop. The system must handle this entirely on its own without any human input.
+Functional requirements
+•	FR1: The follower truck must monitor the incoming signal from the leader at all times using a timeout timer
+•	FR2: If no signal is received for 500ms, the follower truck must classify this as a communication failure
+•	FR3: Upon detecting a failure, the follower truck must switch from platooning mode to fallback mode
+•	FR4: In fallback mode, the follower truck must gradually decelerate to a safe speed or a full stop
+•	FR5: The follower truck must continue lane detection using the camera while in fallback mode
+Timing requirements
+•	TR1: Signal loss must be detected within 500ms of the last received message
+•	TR2: The switch from platooning mode to fallback mode must happen within 100ms of detecting the failure
+•	TR3: Deceleration must begin within 600ms of the last received signal to ensure safe stopping distance
+Safety requirements
+•	SR1: The follower truck must never maintain or increase speed when communication is lost
+•	SR2: Deceleration must be smooth and controlled, sudden hard braking must be avoided unless a collision is approaching.
+•	SR3: The truck must remain within its lane during the fallback deceleration using camera-based lane keeping
+•	SR4: If communication is not restored within 10 seconds, the truck must come to a complete stop
+Assumptions
+•	The follower truck has a continuously running timeout timer that resets every time a signal is received
+•	The camera and lane detection model remain fully functional even when communication fails
+•	The road ahead is clear during the fallback, no obstacles are assumed for this scenario
+•	Communication failure is total, the link does not partially degrade, it drops completely.
+
+
+
+
+Scenario 3: Emergency Braking
+Description
+An obstacle suddenly appears on the road ahead of the leader truck. The leader brakes hard and simultaneously transmits an emergency brake signal to the follower truck over the wireless link. The follower must receive this signal and apply its own brakes within 200ms to avoid a collision. If the brake signal is not received, for example due to a brief communication glitch, the follower truck must still detect that the leader is decelerating through its camera and trigger emergency braking autonomously. The system must handle both the normal and fallback braking paths.
+Functional requirements
+•	FR1: The leader truck must transmit an emergency brake signal immediately upon applying its own brakes
+•	FR2: The follower truck must receive the brake signal and trigger its braking system within 200ms
+•	FR3: If the brake signal is not received, the camera must monitor the leader truck's brake lights and detect deceleration
+•	FR4: Upon visual detection of leader deceleration, the follower must trigger emergency braking within 300ms
+•	FR5: The follower must apply braking force proportional to the detected deceleration of the leader
+Non-functional requirements
+•	NFR1: The braking response must be fast enough to avoid a collision at the current operating speed and following distance
+•	NFR2: The system must be reliable enough that neither the signal path nor the camera path alone is a single point of failure, both must be capable of triggering braking independently
+Timing requirements
+•	TR1: The brake signal must be received and acted on within 200ms of the leader applying its brakes
+•	TR2: If relying on camera detection instead, braking must be triggered within 300ms of detecting leader deceleration
+•	TR3: Camera frame processing during emergency detection must complete within 33ms per frame (30 FPS)
+Safety requirements
+•	SR1: The follower truck must never rely solely on the wireless brake signal, the camera fallback must always be active and ready
+•	SR2: If both the brake signal is missed and the camera fails to detect deceleration within 400ms, the truck must trigger a precautionary emergency stop
+•	SR3: The follower must not brake so hard that it causes a secondary collision with a vehicle behind it, deceleration must be controlled
+•	SR4: The truck must remain in its lane throughout the emergency braking event
+Assumptions
+•	The follower truck is within safe braking distance when travelling at normal operating speed
+•	The leader truck's brake lights are visible to the follower truck's camera at all times
+•	The emergency brake signal is a dedicated high-priority message transmitted separately from regular status signals
+•	No other vehicle is immediately behind the follower truck during the braking event
+
