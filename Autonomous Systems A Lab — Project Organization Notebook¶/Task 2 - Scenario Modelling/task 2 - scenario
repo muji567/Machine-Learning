@@ -1,4 +1,5 @@
 Task 2: Scenario Modelling
+
 Scenario 1: Normal Platooning
 Description
 Two trucks are driving on a straight road in normal platooning mode. The leader truck drives at a constant speed while the follower truck uses its camera and the lane detection model to stay within the lane and maintain a safe following distance. Both trucks are communicating continuously via the wireless link. This is the normal scenario  everything is working as expected.
