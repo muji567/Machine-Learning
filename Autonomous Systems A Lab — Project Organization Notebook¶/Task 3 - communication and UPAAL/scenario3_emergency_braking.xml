@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>
+// Broadcast channels: sender never blocks even if no one is listening.
+// This models a wireless signal that may or may not be received.
+broadcast chan brake_signal;
+broadcast chan cam_decel;
+</declaration>
+	<template>
+		<name>LeaderTruck</name>
+		<declaration>clock t;</declaration>
+		<location id="id0" x="-400" y="0">
+			<name x="-430" y="-34">Driving</name>
+		</location>
+		<location id="id1" x="-100" y="0">
+			<name x="-150" y="-34">ObstacleDetected</name>
+			<label kind="invariant" x="-150" y="20">t &lt;= 5</label>
+		</location>
+		<location id="id2" x="300" y="0">
+			<name x="250" y="-34">BrakingAndSignalling</name>
+		</location>
+		<location id="id3" x="650" y="0">
+			<name x="620" y="-34">Stopped</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id4">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="assignment" x="-380" y="-50">t = 0</label>
+			<label kind="comments" x="-380" y="20">obstacle appears</label>
+		</transition>
+		<transition id="id5">
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="20" y="-34">brake_signal!</label>
+		</transition>
+		<transition id="id6">
+			<source ref="id2"/>
+			<target ref="id3"/>
+		</transition>
+	</template>
+	<template>
+		<name>FollowerTruck</name>
+		<declaration>clock t;</declaration>
+		<location id="id7" x="-400" y="0">
+			<name x="-460" y="-10">Following</name>
+		</location>
+		<location id="id8" x="0" y="-250">
+			<name x="-50" y="-300">SignalReceived</name>
+			<label kind="invariant" x="-50" y="-284">t &lt;= 200</label>
+		</location>
+		<location id="id9" x="450" y="-250">
+			<name x="400" y="-284">EmergencyBraking_PathA</name>
+		</location>
+		<location id="id10" x="0" y="0">
+			<name x="-50" y="-50">SignalMissed_WaitingCamera</name>
+			<label kind="invariant" x="-50" y="30">t &lt;= 400</label>
+		</location>
+		<location id="id11" x="450" y="0">
+			<name x="400" y="-34">EmergencyBraking_PathB</name>
+		</location>
+		<location id="id12" x="0" y="250">
+			<name x="-50" y="270">PrecautionaryStop</name>
+		</location>
+		<location id="id13" x="900" y="0">
+			<name x="870" y="-34">Stopped</name>
+		</location>
+		<init ref="id7"/>
+		<transition id="id14">
+			<source ref="id7"/>
+			<target ref="id8"/>
+			<label kind="synchronisation" x="-360" y="-180">brake_signal?</label>
+			<label kind="assignment" x="-360" y="-160">t = 0</label>
+		</transition>
+		<transition id="id15">
+			<source ref="id8"/>
+			<target ref="id9"/>
+			<label kind="guard" x="150" y="-284">t &lt;= 200</label>
+		</transition>
+		<transition id="id16">
+			<source ref="id7"/>
+			<target ref="id10"/>
+			<label kind="synchronisation" x="-360" y="-30">cam_decel?</label>
+			<label kind="assignment" x="-360" y="-10">t = 0</label>
+		</transition>
+		<transition id="id17">
+			<source ref="id10"/>
+			<target ref="id11"/>
+			<label kind="guard" x="150" y="-34">t &lt;= 300</label>
+		</transition>
+		<transition id="id18">
+			<source ref="id10"/>
+			<target ref="id12"/>
+			<label kind="guard" x="-180" y="120">t &gt;= 300</label>
+		</transition>
+		<transition id="id19">
+			<source ref="id9"/>
+			<target ref="id13"/>
+		</transition>
+		<transition id="id20">
+			<source ref="id11"/>
+			<target ref="id13"/>
+		</transition>
+		<transition id="id21">
+			<source ref="id12"/>
+			<target ref="id13"/>
+		</transition>
+	</template>
+	<template>
+		<name>CameraMonitor</name>
+		<declaration>clock t;</declaration>
+		<location id="id22" x="-300" y="0">
+			<name x="-340" y="-34">Monitoring</name>
+		</location>
+		<location id="id23" x="50" y="0">
+			<name x="20" y="-50">Processing</name>
+			<label kind="invariant" x="20" y="30">t &lt;= 33</label>
+		</location>
+		<location id="id24" x="400" y="0">
+			<name x="360" y="-34">DecelDetected</name>
+		</location>
+		<init ref="id22"/>
+		<transition id="id25">
+			<source ref="id22"/>
+			<target ref="id23"/>
+			<label kind="assignment" x="-250" y="-30">t = 0</label>
+		</transition>
+		<transition id="id26">
+			<source ref="id23"/>
+			<target ref="id24"/>
+			<label kind="guard" x="120" y="-34">t &lt;= 33</label>
+			<label kind="synchronisation" x="120" y="20">cam_decel!</label>
+		</transition>
+		<transition id="id27">
+			<source ref="id24"/>
+			<target ref="id22"/>
+			<nail x="50" y="150"/>
+		</transition>
+	</template>
+	<system>
+leader = LeaderTruck();
+follower = FollowerTruck();
+camera = CameraMonitor();
+
+system leader, follower, camera;
+  </system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment>The system must never get permanently stuck (deadlock-free)</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 22:56:30 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; follower.Stopped</formula>
+			<comment>It is possible for the follower to reach a stopped state</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 22:56:32 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] follower.SignalReceived imply follower.t &lt;= 200</formula>
+			<comment>TR1: braking triggered within 200ms of signal receipt</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 22:56:33 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] follower.SignalMissed_WaitingCamera imply follower.t &lt;= 400</formula>
+			<comment>TR2/SR2: camera path or precautionary stop within 400ms</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 22:56:35 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>

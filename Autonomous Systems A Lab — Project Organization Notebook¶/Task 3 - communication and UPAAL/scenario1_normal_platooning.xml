@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>
+// Broadcast beacon: leader's speed+position, sent continuously
+broadcast chan signal;
+
+// Shared state read by the speed controller
+int dist = 10;       // following distance in metres (starts safe, &gt;= 5)
+int lane_lost = 0;   // consecutive frames with no lane markings
+</declaration>
+	<template>
+		<name>LeaderTruck</name>
+		<declaration>clock t;</declaration>
+		<location id="id0" x="0" y="0">
+			<name x="-30" y="-40">Cruising</name>
+			<label kind="invariant" x="-30" y="20">t &lt;= 100</label>
+		</location>
+		<init ref="id0"/>
+		<transition id="id1">
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-120" y="-150">t &lt;= 100</label>
+			<label kind="synchronisation" x="-120" y="-130">signal!</label>
+			<label kind="assignment" x="-120" y="-110">t = 0</label>
+			<nail x="0" y="-150"/>
+		</transition>
+	</template>
+	<template>
+		<name>LaneDetection</name>
+		<declaration>clock t;</declaration>
+		<location id="id2" x="-200" y="0">
+			<name x="-240" y="-40">WaitFrame</name>
+		</location>
+		<location id="id3" x="150" y="0">
+			<name x="120" y="-50">Processing</name>
+			<label kind="invariant" x="120" y="20">t &lt;= 33</label>
+		</location>
+		<location id="id4" x="500" y="-150">
+			<name x="470" y="-184">SteeringApplied</name>
+		</location>
+		<location id="id5" x="500" y="150">
+			<name x="470" y="170">LaneLost_SlowAlert</name>
+		</location>
+		<init ref="id2"/>
+		<transition id="id6">
+			<source ref="id2"/>
+			<target ref="id3"/>
+			<label kind="assignment" x="-150" y="-30">t = 0</label>
+		</transition>
+		<transition id="id7">
+			<source ref="id3"/>
+			<target ref="id4"/>
+			<label kind="guard" x="220" y="-150">t &lt;= 33</label>
+			<label kind="assignment" x="220" y="-130">lane_lost = 0</label>
+		</transition>
+		<transition id="id8">
+			<source ref="id3"/>
+			<target ref="id5"/>
+			<label kind="guard" x="220" y="120">t &lt;= 33 &amp;&amp; lane_lost &gt;= 3</label>
+			<label kind="comments" x="220" y="100">lane lost &gt; 3 frames (SR2)</label>
+		</transition>
+		<transition id="id9">
+			<source ref="id3"/>
+			<target ref="id2"/>
+			<label kind="guard" x="-150" y="60">t &lt;= 33 &amp;&amp; lane_lost &lt; 3</label>
+			<label kind="assignment" x="-150" y="80">lane_lost++</label>
+			<nail x="-200" y="120"/>
+		</transition>
+		<transition id="id10">
+			<source ref="id4"/>
+			<target ref="id2"/>
+			<nail x="500" y="-260"/>
+			<nail x="-200" y="-260"/>
+		</transition>
+		<transition id="id11">
+			<source ref="id5"/>
+			<target ref="id2"/>
+			<label kind="assignment" x="0" y="250">lane_lost = 0</label>
+			<nail x="500" y="280"/>
+			<nail x="-200" y="280"/>
+		</transition>
+	</template>
+	<template>
+		<name>SpeedController</name>
+		<declaration>clock t;</declaration>
+		<location id="id12" x="-200" y="0">
+			<name x="-260" y="-10">Following</name>
+		</location>
+		<location id="id13" x="200" y="-150">
+			<name x="160" y="-184">ReduceSpeed</name>
+		</location>
+		<location id="id14" x="200" y="150">
+			<name x="160" y="170">MatchLeaderSpeed</name>
+		</location>
+		<init ref="id12"/>
+		<transition id="id15">
+			<source ref="id12"/>
+			<target ref="id12"/>
+			<label kind="synchronisation" x="-320" y="-130">signal?</label>
+			<nail x="-200" y="-120"/>
+		</transition>
+		<transition id="id16">
+			<source ref="id12"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-80" y="-150">dist &lt; 5</label>
+		</transition>
+		<transition id="id17">
+			<source ref="id12"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-80" y="120">dist &gt;= 5</label>
+		</transition>
+		<transition id="id18">
+			<source ref="id13"/>
+			<target ref="id12"/>
+			<label kind="assignment" x="-80" y="-90">dist = 10</label>
+		</transition>
+		<transition id="id19">
+			<source ref="id14"/>
+			<target ref="id12"/>
+		</transition>
+	</template>
+	<system>
+leader = LeaderTruck();
+lane = LaneDetection();
+controller = SpeedController();
+
+system leader, lane, controller;
+  </system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment>The system must never get permanently stuck (deadlock-free)</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 23:22:17 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] lane.Processing imply lane.t &lt;= 33</formula>
+			<comment>TR1/TR2: every frame is processed within 33ms (30 FPS)</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 23:22:19 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] controller.ReduceSpeed imply dist &lt; 5</formula>
+			<comment>SR1: speed is only reduced when distance drops below 5m</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 23:22:20 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] controller.MatchLeaderSpeed imply dist &gt;= 5</formula>
+			<comment>FR3/FR4: speed matching only while safe distance is maintained</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 23:22:23 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; controller.MatchLeaderSpeed</formula>
+			<comment>Normal speed synchronisation is reachable</comment>
+			<result outcome="success" type="quality" timestamp="2026-06-11 23:22:25 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>
