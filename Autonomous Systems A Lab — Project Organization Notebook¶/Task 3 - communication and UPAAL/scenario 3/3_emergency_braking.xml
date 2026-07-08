@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>
+chan brake_signal;
+chan cam_decel;
+</declaration>
+	<template>
+		<name>LeaderTruck</name>
+		<declaration>clock t;</declaration>
+		<location id="id0" x="-250" y="0">
+			<name x="-280" y="-34">Driving</name>
+		</location>
+		<location id="id1" x="-50" y="0">
+			<name x="-90" y="-34">ObstacleDetected</name>
+			<label kind="invariant" x="-90" y="20">t &lt;= 5</label>
+		</location>
+		<location id="id2" x="180" y="0">
+			<name x="150" y="-34">BrakingAndSignalling</name>
+		</location>
+		<location id="id3" x="380" y="0">
+			<name x="360" y="-34">Stopped</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id4">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="assignment" x="-212" y="-17">t = 0</label>
+		</transition>
+		<transition id="id5">
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="17" y="0">brake_signal!</label>
+		</transition>
+		<transition id="id6">
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="guard" x="34" y="68">t &gt;= 5</label>
+			<nail x="-50" y="90"/>
+			<nail x="180" y="90"/>
+		</transition>
+		<transition id="id7">
+			<source ref="id2"/>
+			<target ref="id3"/>
+		</transition>
+	</template>
+	<template>
+		<name>FollowerTruck</name>
+		<declaration>clock t;</declaration>
+		<location id="id8" x="-250" y="0">
+			<name x="-306" y="8">Following</name>
+		</location>
+		<location id="id9" x="-8" y="-102">
+			<name x="-59" y="-136">SignalReceived</name>
+			<label kind="invariant" x="-42" y="-93">t &lt;= 200</label>
+		</location>
+		<location id="id10" x="272" y="-102">
+			<name x="229" y="-136">EmergencyBraking_PathA</name>
+		</location>
+		<location id="id11" x="0" y="0">
+			<name x="-50" y="-34">SignalMissed_WaitingCamera</name>
+			<label kind="invariant" x="-51" y="8">t &lt;= 400</label>
+		</location>
+		<location id="id12" x="270" y="0">
+			<name x="230" y="-34">EmergencyBraking_PathB</name>
+		</location>
+		<location id="id13" x="0" y="85">
+			<name x="-50" y="99">PrecautionaryStop</name>
+		</location>
+		<location id="id14" x="476" y="0">
+			<name x="450" y="-42">Stopped</name>
+		</location>
+		<init ref="id8"/>
+		<transition id="id15">
+			<source ref="id8"/>
+			<target ref="id9"/>
+			<label kind="synchronisation" x="-229" y="-119">brake_signal?</label>
+			<label kind="assignment" x="-204" y="-102">t = 0</label>
+			<nail x="-246" y="-102"/>
+		</transition>
+		<transition id="id16">
+			<source ref="id9"/>
+			<target ref="id10"/>
+			<label kind="guard" x="110" y="-127">t &lt;= 200</label>
+		</transition>
+		<transition id="id17">
+			<source ref="id8"/>
+			<target ref="id11"/>
+			<label kind="synchronisation" x="-220" y="-20">cam_decel?</label>
+			<label kind="assignment" x="-220" y="-4">t = 0</label>
+		</transition>
+		<transition id="id18">
+			<source ref="id11"/>
+			<target ref="id12"/>
+			<label kind="guard" x="90" y="-20">t &lt;= 300</label>
+		</transition>
+		<transition id="id19">
+			<source ref="id11"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-85" y="42">t &gt;= 300</label>
+		</transition>
+		<transition id="id20">
+			<source ref="id10"/>
+			<target ref="id14"/>
+			<nail x="476" y="-102"/>
+		</transition>
+		<transition id="id21">
+			<source ref="id12"/>
+			<target ref="id14"/>
+		</transition>
+		<transition id="id22">
+			<source ref="id13"/>
+			<target ref="id14"/>
+			<nail x="476" y="85"/>
+		</transition>
+	</template>
+	<template>
+		<name>CameraMonitor</name>
+		<declaration>clock t;</declaration>
+		<location id="id23" x="-180" y="0">
+			<name x="-210" y="-34">Monitoring</name>
+		</location>
+		<location id="id24" x="30" y="0">
+			<name x="10" y="-34">Processing</name>
+			<label kind="invariant" x="10" y="20">t &lt;= 33</label>
+		</location>
+		<location id="id25" x="240" y="0">
+			<name x="210" y="-34">DecelDetected</name>
+		</location>
+		<init ref="id23"/>
+		<transition id="id26">
+			<source ref="id23"/>
+			<target ref="id24"/>
+			<label kind="assignment" x="-102" y="-17">t = 0</label>
+		</transition>
+		<transition id="id27">
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="guard" x="102" y="-17">t &lt;= 33</label>
+			<label kind="synchronisation" x="93" y="0">cam_decel!</label>
+		</transition>
+		<transition id="id28">
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="guard" x="102" y="51">t &gt;= 33</label>
+			<nail x="28" y="76"/>
+			<nail x="238" y="76"/>
+		</transition>
+		<transition id="id29">
+			<source ref="id25"/>
+			<target ref="id23"/>
+			<nail x="238" y="-85"/>
+			<nail x="-178" y="-85"/>
+		</transition>
+	</template>
+	<system>
+leader = LeaderTruck();
+follower = FollowerTruck();
+camera = CameraMonitor();
+
+system leader, follower, camera;
+  </system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment>The system must never get permanently stuck (deadlock-free)</comment>
+			<option key="--diagnostic" value="1"/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 13:31:31 +0200">
+				<option key="--diagnostic" value="1"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; follower.Stopped</formula>
+			<comment>It is possible for the follower to reach a stopped state</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-08 13:20:37 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] follower.SignalReceived imply follower.t &lt;= 200</formula>
+			<comment>TR1: braking triggered within 200ms of signal receipt</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-08 13:20:40 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] follower.SignalMissed_WaitingCamera imply follower.t &lt;= 400</formula>
+			<comment>TR2/SR2: camera path or precautionary stop within 400ms</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-08 13:20:41 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>
