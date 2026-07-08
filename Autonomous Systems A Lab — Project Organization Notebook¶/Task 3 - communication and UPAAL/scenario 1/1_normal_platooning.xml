@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+
+chan signal;
+int dist = 10;
+int lane_lost = 0;
+</declaration>
+	<template>
+		<name x="5" y="5">LeaderTruck</name>
+		<declaration>// Place local declarations here.
+clock t;</declaration>
+		<location id="id0" x="-467" y="-255">
+			<name x="-477" y="-289">Cruising</name>
+			<label kind="invariant" x="-477" y="-238">t &lt;= 100</label>
+		</location>
+		<init ref="id0"/>
+		<transition id="id1">
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-382" y="-289">t &lt;= 100</label>
+			<label kind="synchronisation" x="-382" y="-272">signal!</label>
+			<label kind="assignment" x="-365" y="-255">t = 0</label>
+			<nail x="-272" y="-255"/>
+		</transition>
+	</template>
+	<template>
+		<name>LaneDetection</name>
+		<declaration>clock t;</declaration>
+		<location id="id2" x="-450" y="-246">
+			<name x="-460" y="-280">WaitFrame</name>
+		</location>
+		<location id="id3" x="-297" y="-246">
+			<name x="-340" y="-272">Processing</name>
+			<label kind="invariant" x="-331" y="-229">t &lt;= 33</label>
+		</location>
+		<location id="id4" x="-144" y="-246">
+			<name x="-154" y="-280">SteeringApplied</name>
+		</location>
+		<location id="id5" x="8" y="-246">
+			<name x="-2" y="-280">LaneLost_SlowAlert</name>
+		</location>
+		<init ref="id2"/>
+		<transition id="id6">
+			<source ref="id5"/>
+			<target ref="id2"/>
+			<label kind="assignment" x="-263" y="-144">lane_lost = 0</label>
+			<nail x="8" y="-144"/>
+			<nail x="-484" y="-145"/>
+			<nail x="-484" y="-221"/>
+			<nail x="-484" y="-246"/>
+		</transition>
+		<transition id="id7">
+			<source ref="id4"/>
+			<target ref="id2"/>
+			<nail x="-144" y="-306"/>
+			<nail x="-450" y="-306"/>
+		</transition>
+		<transition id="id8">
+			<source ref="id3"/>
+			<target ref="id2"/>
+			<label kind="guard" x="-467" y="-204">t &lt;= 33 &amp;&amp; lane_lost &lt; 3</label>
+			<label kind="assignment" x="-432" y="-187">lane_lost++</label>
+			<nail x="-297" y="-187"/>
+			<nail x="-450" y="-187"/>
+		</transition>
+		<transition id="id9">
+			<source ref="id3"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-263" y="-365">t &lt;= 33 &amp;&amp; lane_lost &gt;= 3</label>
+			<nail x="-297" y="-340"/>
+			<nail x="8" y="-340"/>
+		</transition>
+		<transition id="id10">
+			<source ref="id3"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-246" y="-263">t &lt;= 33</label>
+			<label kind="assignment" x="-279" y="-246">lane_lost = 0</label>
+		</transition>
+		<transition id="id11">
+			<source ref="id2"/>
+			<target ref="id3"/>
+			<label kind="assignment" x="-425" y="-246">t = 0</label>
+		</transition>
+	</template>
+	<template>
+		<name>SpeedController</name>
+		<declaration>clock t;</declaration>
+		<location id="id12" x="-229" y="-136">
+			<name x="-314" y="-170">Following</name>
+		</location>
+		<location id="id13" x="-76" y="-136">
+			<name x="-86" y="-170">ReduceSpeed</name>
+		</location>
+		<location id="id14" x="102" y="-136">
+			<name x="59" y="-170">MatchLeaderSpeed</name>
+		</location>
+		<init ref="id12"/>
+		<transition id="id15">
+			<source ref="id14"/>
+			<target ref="id12"/>
+			<nail x="102" y="-93"/>
+			<nail x="-204" y="-93"/>
+			<nail x="-204" y="-178"/>
+			<nail x="-229" y="-178"/>
+		</transition>
+		<transition id="id16">
+			<source ref="id13"/>
+			<target ref="id12"/>
+			<label kind="assignment" x="-211" y="-76">dist = 10</label>
+			<nail x="-76" y="-76"/>
+			<nail x="-229" y="-76"/>
+		</transition>
+		<transition id="id17">
+			<source ref="id12"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-153" y="-229">dist &gt;=5</label>
+			<nail x="-229" y="-204"/>
+			<nail x="102" y="-204"/>
+		</transition>
+		<transition id="id18">
+			<source ref="id12"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-187" y="-153">dist &lt; 5</label>
+		</transition>
+		<transition id="id19">
+			<source ref="id12"/>
+			<target ref="id12"/>
+			<label kind="synchronisation" x="-323" y="-110">signal?</label>
+			<nail x="-229" y="-34"/>
+			<nail x="-263" y="-34"/>
+			<nail x="-263" y="-136"/>
+		</transition>
+	</template>
+	<system>leader = LeaderTruck();
+lane = LaneDetection();
+controller = SpeedController();
+system leader, lane, controller;</system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 11:58:35 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] lane.Processing imply lane.t &lt;= 33</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 11:58:39 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] controller.ReduceSpeed imply dist &lt; 5</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 11:58:42 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] controller.MatchLeaderSpeed imply dist &gt;= 5</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 11:58:44 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; controller.MatchLeaderSpeed</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 11:58:45 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>

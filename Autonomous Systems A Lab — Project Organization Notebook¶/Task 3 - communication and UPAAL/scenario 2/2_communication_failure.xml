@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+chan signal;
+chan link_restored;</declaration>
+	<template>
+		<name x="5" y="5">LeaderTruck</name>
+		<declaration>// Place local declarations here.
+clock t;</declaration>
+		<location id="id0" x="-238" y="-187">
+			<name x="-280" y="-229">Broadcasting</name>
+			<label kind="invariant" x="-255" y="-212">t &lt;= 100</label>
+		</location>
+		<location id="id1" x="-17" y="-187">
+			<name x="-51" y="-221">LinkDropped</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id2">
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="-178" y="-255">link_restored!</label>
+			<label kind="assignment" x="-153" y="-238">t = 0</label>
+			<nail x="-17" y="-238"/>
+			<nail x="-238" y="-238"/>
+		</transition>
+		<transition id="id3">
+			<source ref="id0"/>
+			<target ref="id1"/>
+		</transition>
+		<transition id="id4">
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-238" y="-165">t &lt;= 100</label>
+			<label kind="synchronisation" x="-238" y="-148">signal!</label>
+			<label kind="assignment" x="-238" y="-131">t = 0</label>
+			<nail x="-238" y="-101"/>
+			<nail x="-263" y="-101"/>
+			<nail x="-263" y="-161"/>
+			<nail x="-263" y="-187"/>
+		</transition>
+	</template>
+	<template>
+		<name>FollowerTruck</name>
+		<declaration>clock x;
+clock f;</declaration>
+		<location id="id5" x="-255" y="-119">
+			<name x="-265" y="-153">Platooning</name>
+			<label kind="invariant" x="-272" y="-110">x &lt;= 500</label>
+		</location>
+		<location id="id6" x="-93" y="-119">
+			<name x="-103" y="-153">FailureDetected</name>
+			<label kind="invariant" x="-103" y="-102">f &lt;= 100</label>
+		</location>
+		<location id="id7" x="68" y="-119">
+			<name x="58" y="-153">FallbackMode</name>
+			<label kind="invariant" x="58" y="-102">f &lt;= 10000</label>
+		</location>
+		<location id="id8" x="238" y="-119">
+			<name x="228" y="-153">SafeStop</name>
+		</location>
+		<init ref="id5"/>
+		<transition id="id9">
+			<source ref="id7"/>
+			<target ref="id8"/>
+			<label kind="guard" x="102" y="-136">f &gt;= 10000</label>
+		</transition>
+		<transition id="id10">
+			<source ref="id7"/>
+			<target ref="id5"/>
+			<nail x="68" y="-59"/>
+			<nail x="-255" y="-59"/>
+		</transition>
+		<transition id="id11">
+			<source ref="id7"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-237" y="-212">link_restored?</label>
+			<label kind="assignment" x="-237" y="-195">x = 0</label>
+			<nail x="68" y="-195"/>
+			<nail x="-255" y="-195"/>
+		</transition>
+		<transition id="id12">
+			<source ref="id6"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-59" y="-136">f &lt;= 100</label>
+		</transition>
+		<transition id="id13">
+			<source ref="id5"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-212" y="-136">x &gt;= 500</label>
+			<label kind="assignment" x="-195" y="-119">f = 0</label>
+		</transition>
+		<transition id="id14">
+			<source ref="id5"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-331" y="-102">signal?</label>
+			<label kind="assignment" x="-323" y="-85">x = 0</label>
+			<nail x="-255" y="-51"/>
+			<nail x="-272" y="-51"/>
+			<nail x="-272" y="-119"/>
+		</transition>
+	</template>
+	<template>
+		<name>CameraMonitor</name>
+		<declaration>clock t;</declaration>
+		<location id="id15" x="-161" y="-102">
+			<name x="-171" y="-136">Idle</name>
+		</location>
+		<location id="id16" x="102" y="-102">
+			<name x="92" y="-136">Processing</name>
+			<label kind="invariant" x="92" y="-85">t &lt;= 33</label>
+		</location>
+		<init ref="id15"/>
+		<transition id="id17">
+			<source ref="id16"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-102" y="-42">t &lt;= 33</label>
+			<nail x="102" y="-17"/>
+			<nail x="-161" y="-17"/>
+		</transition>
+		<transition id="id18">
+			<source ref="id15"/>
+			<target ref="id16"/>
+			<label kind="assignment" x="-143" y="-102">t = 0</label>
+		</transition>
+	</template>
+	<system>leader = LeaderTruck();
+follower = FollowerTruck();
+camera = CameraMonitor();
+system leader, follower, camera;</system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 12:48:51 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; follower.FallbackMode</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 12:48:55 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; follower.SafeStop</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 12:48:57 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] follower.FailureDetected imply follower.f &lt;= 100</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 12:48:58 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] follower.Platooning imply follower.x &lt;= 500</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2026-07-08 12:49:00 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>
