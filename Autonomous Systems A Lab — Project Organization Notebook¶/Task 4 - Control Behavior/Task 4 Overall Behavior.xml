@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>// Task 4 - Control Behaviour
+
+
+const int D_SAFE = 10;
+const int D_MIN = 5;
+const int D_WARN = 7;
+
+const int T_CTRL = 100;      // control cycle
+const int T_CAM = 33;        // SVM/camera processing
+const int T_TIMEOUT = 500;   // communication timeout
+const int T_FALLBACK = 10000; // max fallback before stop,(full stop after 10s)
+const int T_BRAKE = 200;     // emergency brake reaction
+
+int[0,20] dist = D_SAFE;
+bool comm_ok = true;
+bool lane_ok = true;
+bool emergency = false;
+bool svm_bad = false;
+bool fallback = false;
+bool stopped = false;</declaration>
+	<template>
+		<name x="5" y="5">LeaderAndSensors</name>
+		<declaration>clock e;</declaration>
+		<location id="id0" x="-620" y="-170">
+			<name x="-660" y="-205">Normal</name>
+		</location>
+		<location id="id1" x="-400" y="-300">
+			<name x="-440" y="-335">CloseGap</name>
+		</location>
+		<location id="id2" x="-400" y="-170">
+			<name x="-445" y="-205">CommLoss</name>
+			<label kind="invariant" x="-432" y="-148">e &lt;= 700</label>
+		</location>
+		<location id="id3" x="-400" y="-40">
+			<name x="-440" y="-75">LaneLoss</name>
+		</location>
+		<location id="id4" x="-180" y="-170">
+			<name x="-220" y="-205">Obstacle</name>
+		</location>
+		<location id="id5" x="40" y="-170">
+			<name x="0" y="-205">Restore</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id6">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="assignment" x="-570" y="-275">dist = 4</label>
+			<nail x="-560" y="-300"/>
+		</transition>
+		<transition id="id7">
+			<source ref="id1"/>
+			<target ref="id5"/>
+			<label kind="assignment" x="-260" y="-300">dist = D_SAFE</label>
+			<nail x="40" y="-300"/>
+		</transition>
+		<transition id="id8">
+			<source ref="id0"/>
+			<target ref="id2"/>
+			<label kind="assignment" x="-570" y="-160">comm_ok = false, e = 0</label>
+		</transition>
+		<transition id="id9">
+			<source ref="id2"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-260" y="-152">e &gt;= 500</label>
+			<label kind="assignment" x="-260" y="-135">comm_ok = true</label>
+		</transition>
+		<transition id="id10">
+			<source ref="id0"/>
+			<target ref="id3"/>
+			<label kind="assignment" x="-570" y="-50">lane_ok = false</label>
+			<nail x="-560" y="-40"/>
+		</transition>
+		<transition id="id11">
+			<source ref="id3"/>
+			<target ref="id5"/>
+			<label kind="assignment" x="-260" y="-40">lane_ok = true</label>
+			<nail x="40" y="-40"/>
+		</transition>
+		<transition id="id12">
+			<source ref="id0"/>
+			<target ref="id4"/>
+			<label kind="assignment" x="-440" y="-235">emergency = true, dist = 3</label>
+			<nail x="-620" y="-240"/>
+			<nail x="-180" y="-240"/>
+		</transition>
+		<transition id="id13">
+			<source ref="id4"/>
+			<target ref="id5"/>
+			<label kind="assignment" x="-115" y="-160">emergency = false</label>
+		</transition>
+		<transition id="id14">
+			<source ref="id5"/>
+			<target ref="id0"/>
+			<label kind="assignment" x="-315" y="-100">dist = D_SAFE</label>
+			<nail x="40" y="-100"/>
+			<nail x="-620" y="-100"/>
+		</transition>
+	</template>
+	<template>
+		<name>LaneSVM</name>
+		<declaration>clock t;</declaration>
+		<location id="id15" x="-620" y="90">
+			<name x="-655" y="55">Idle</name>
+		</location>
+		<location id="id16" x="-400" y="90">
+			<name x="-445" y="55">Processing</name>
+			<label kind="invariant" x="-435" y="110">t &lt;= T_CAM</label>
+		</location>
+		<location id="id17" x="-180" y="20">
+			<name x="-215" y="-15">LaneOK</name>
+		</location>
+		<location id="id18" x="-180" y="160">
+			<name x="-225" y="175">LaneLost</name>
+		</location>
+		<init ref="id15"/>
+		<transition id="id19">
+			<source ref="id15"/>
+			<target ref="id16"/>
+			<label kind="assignment" x="-545" y="73">t = 0</label>
+		</transition>
+		<transition id="id20">
+			<source ref="id16"/>
+			<target ref="id17"/>
+			<label kind="guard" x="-340" y="35">lane_ok</label>
+			<label kind="assignment" x="-340" y="52">svm_bad = false</label>
+		</transition>
+		<transition id="id21">
+			<source ref="id16"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-340" y="135">!lane_ok</label>
+			<label kind="assignment" x="-340" y="152">svm_bad = true</label>
+		</transition>
+		<transition id="id22">
+			<source ref="id17"/>
+			<target ref="id15"/>
+			<nail x="-180" y="-20"/>
+			<nail x="-620" y="-20"/>
+		</transition>
+		<transition id="id23">
+			<source ref="id18"/>
+			<target ref="id15"/>
+			<nail x="-180" y="220"/>
+			<nail x="-620" y="220"/>
+		</transition>
+	</template>
+	<template>
+		<name>FollowerControl</name>
+		<declaration>clock t;</declaration>
+		<location id="id24" x="-620" y="430">
+			<name x="-665" y="395">NormalACC</name>
+			<label kind="invariant" x="-650" y="450">t &lt;= T_CTRL</label>
+		</location>
+		<location id="id25" x="-400" y="300">
+			<name x="-450" y="265">ReduceSpeed</name>
+		</location>
+		<location id="id26" x="-400" y="430">
+			<name x="-440" y="395">CommLost</name>
+			<label kind="invariant" x="-435" y="450">t &lt;= T_TIMEOUT</label>
+		</location>
+		<location id="id27" x="-180" y="430">
+			<name x="-225" y="395">FallbackACC</name>
+			<label kind="invariant" x="-225" y="450">t &lt;= T_FALLBACK</label>
+		</location>
+		<location id="id28" x="40" y="430">
+			<name x="-20" y="395">PrecautionStop</name>
+		</location>
+		<location id="id29" x="-180" y="300">
+			<name x="-235" y="265">EmergencyBrake</name>
+			<label kind="invariant" x="-220" y="320">t &lt;= T_BRAKE</label>
+		</location>
+		<location id="id30" x="260" y="430">
+			<name x="230" y="395">SafeStop</name>
+		</location>
+		<init ref="id24"/>
+		<transition id="id31">
+			<source ref="id24"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-710" y="485">t &gt;= T_CTRL</label>
+			<label kind="assignment" x="-695" y="502">t = 0</label>
+			<nail x="-620" y="520"/>
+			<nail x="-680" y="520"/>
+			<nail x="-680" y="430"/>
+		</transition>
+		<transition id="id32">
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-560" y="345">dist &lt; D_MIN</label>
+			<nail x="-620" y="300"/>
+		</transition>
+		<transition id="id33">
+			<source ref="id25"/>
+			<target ref="id24"/>
+			<label kind="assignment" x="-555" y="285">dist = D_SAFE, t = 0</label>
+			<nail x="-400" y="250"/>
+			<nail x="-620" y="250"/>
+		</transition>
+		<transition id="id34">
+			<source ref="id24"/>
+			<target ref="id26"/>
+			<label kind="guard" x="-550" y="410">!comm_ok</label>
+			<label kind="assignment" x="-545" y="427">t = 0</label>
+		</transition>
+		<transition id="id35">
+			<source ref="id26"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-545" y="465">comm_ok</label>
+			<label kind="assignment" x="-545" y="482">t = 0</label>
+			<nail x="-400" y="500"/>
+			<nail x="-620" y="500"/>
+		</transition>
+		<transition id="id36">
+			<source ref="id26"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-330" y="410">t &gt;= T_TIMEOUT</label>
+			<label kind="assignment" x="-330" y="427">fallback = true, t = 0</label>
+		</transition>
+		<transition id="id37">
+			<source ref="id27"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-430" y="560">comm_ok &amp;&amp; !svm_bad</label>
+			<label kind="assignment" x="-430" y="577">fallback = false, t = 0</label>
+			<nail x="-180" y="560"/>
+			<nail x="-620" y="560"/>
+		</transition>
+		<transition id="id38">
+			<source ref="id27"/>
+			<target ref="id28"/>
+			<label kind="guard" x="-110" y="410">svm_bad || t &gt;= T_FALLBACK</label>
+			<label kind="assignment" x="-80" y="427">t = 0</label>
+		</transition>
+		<transition id="id39">
+			<source ref="id28"/>
+			<target ref="id30"/>
+			<label kind="assignment" x="115" y="410">stopped = true</label>
+		</transition>
+		<transition id="id40">
+			<source ref="id24"/>
+			<target ref="id29"/>
+			<label kind="guard" x="-555" y="320">emergency || svm_bad</label>
+			<label kind="assignment" x="-555" y="337">t = 0</label>
+			<nail x="-620" y="340"/>
+		</transition>
+		<transition id="id41">
+			<source ref="id29"/>
+			<target ref="id30"/>
+			<label kind="guard" x="-30" y="300">t &lt;= T_BRAKE</label>
+			<label kind="assignment" x="-30" y="317">stopped = true</label>
+			<nail x="260" y="300"/>
+		</transition>
+		<transition id="id42">
+			<source ref="id30"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-270" y="640">comm_ok &amp;&amp; !svm_bad &amp;&amp; !emergency</label>
+			<label kind="assignment" x="-270" y="657">stopped = false, fallback = false, t = 0</label>
+			<nail x="260" y="640"/>
+			<nail x="-620" y="640"/>
+		</transition>
+	</template>
+	<system>env = LeaderAndSensors();
+lane = LaneSVM();
+ctrl = FollowerControl();
+
+system env, lane, ctrl;</system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment>No permanent deadlock in the control model.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:46 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] lane.Processing imply lane.t &lt;= T_CAM</formula>
+			<comment>SVM/lane decision is bounded by 33 ms.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:47 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] ctrl.EmergencyBrake imply ctrl.t &lt;= T_BRAKE</formula>
+			<comment>Emergency braking reaction is bounded.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:48 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] ctrl.FallbackACC imply fallback</formula>
+			<comment>Fallback flag is active in fallback ACC.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:48 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] ctrl.SafeStop imply stopped</formula>
+			<comment>SafeStop means the follower is stopped.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:49 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl.ReduceSpeed</formula>
+			<comment>Distance-keeping behaviour can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:50 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl.FallbackACC</formula>
+			<comment>Communication-failure fallback can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:51 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl.PrecautionStop</formula>
+			<comment>Precautionary fallback stop can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:52 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl.EmergencyBrake</formula>
+			<comment>Emergency braking can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:51 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl.SafeStop</formula>
+			<comment>Safe stop can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:53 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>
