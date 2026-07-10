@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>// Task 4 - Control Behaviour
+// Lightweight scalable version:
+// The simulator runs only one active follower, but the declarations
+// show that the same templates can scale to one lead + three followers.
+
+const int N_LEAD = 1;
+
+// Maximum design size required by the scenario:
+// 1 lead truck + 3 follower trucks.
+const int MAX_FOLLOWERS = 3;
+const int MAX_TRUCKS = N_LEAD + MAX_FOLLOWERS;
+
+// Number of followers instantiated in this UPPAAL run.
+// Keep this as 1 to avoid state-space explosion and high CPU usage.
+// Change to 2 or 3 only if you want to verify the larger platoon explicitly.
+const int ACTIVE_FOLLOWERS = 1;
+
+typedef int[0, MAX_FOLLOWERS-1] follower_t;
+const follower_t F0 = 0;
+
+// Distance parameters
+const int D_SAFE = 10;
+const int D_MIN = 5;
+const int D_WARN = 7;
+const int D_CLOSE = 4;
+const int D_OBSTACLE = 3;
+const int D_MAX = 20;
+
+// Timing parameters in milliseconds
+const int T_CTRL = 100;        // control cycle
+const int T_CAM = 33;          // camera/SVM processing period
+const int T_TIMEOUT = 500;     // communication timeout
+const int T_COMM_RESTORE = 700;// maximum time before communication is restored in environment model
+const int T_FALLBACK = 10000;  // maximum fallback duration before stop
+const int T_BRAKE = 200;       // emergency-brake reaction bound
+
+// Arrays are sized for the maximum platoon, but only index F0 is active
+// in the current system declaration. This keeps verification lightweight.
+int[0,D_MAX] dist[follower_t] = {D_SAFE, D_SAFE, D_SAFE};
+
+bool comm_ok[follower_t] = {true, true, true};
+bool lane_ok[follower_t] = {true, true, true};
+bool emergency[follower_t] = {false, false, false};
+bool svm_bad[follower_t] = {false, false, false};
+bool fallback[follower_t] = {false, false, false};
+bool stopped[follower_t] = {false, false, false};</declaration>
+	<template>
+		<name x="5" y="5">LeaderAndSensors</name>
+		<parameter>const follower_t i</parameter>
+		<declaration>clock e;</declaration>
+		<location id="id0" x="-620" y="-170">
+			<name x="-660" y="-205">Normal</name>
+		</location>
+		<location id="id1" x="-400" y="-300">
+			<name x="-440" y="-335">CloseGap</name>
+		</location>
+		<location id="id2" x="-400" y="-170">
+			<name x="-445" y="-205">CommLoss</name>
+			<label kind="invariant" x="-432" y="-148">e &lt;= T_COMM_RESTORE</label>
+		</location>
+		<location id="id3" x="-400" y="-40">
+			<name x="-440" y="-75">LaneLoss</name>
+		</location>
+		<location id="id4" x="-180" y="-170">
+			<name x="-220" y="-205">Obstacle</name>
+		</location>
+		<location id="id5" x="40" y="-170">
+			<name x="0" y="-205">Restore</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id6">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="assignment" x="-570" y="-275">dist[i] = D_CLOSE</label>
+			<nail x="-560" y="-300"/>
+		</transition>
+		<transition id="id7">
+			<source ref="id1"/>
+			<target ref="id5"/>
+			<label kind="assignment" x="-260" y="-300">dist[i] = D_SAFE</label>
+			<nail x="40" y="-300"/>
+		</transition>
+		<transition id="id8">
+			<source ref="id0"/>
+			<target ref="id2"/>
+			<label kind="assignment" x="-570" y="-160">comm_ok[i] = false, e = 0</label>
+		</transition>
+		<transition id="id9">
+			<source ref="id2"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-260" y="-152">e &gt;= T_TIMEOUT</label>
+			<label kind="assignment" x="-260" y="-135">comm_ok[i] = true</label>
+		</transition>
+		<transition id="id10">
+			<source ref="id0"/>
+			<target ref="id3"/>
+			<label kind="assignment" x="-570" y="-50">lane_ok[i] = false</label>
+			<nail x="-560" y="-40"/>
+		</transition>
+		<transition id="id11">
+			<source ref="id3"/>
+			<target ref="id5"/>
+			<label kind="assignment" x="-260" y="-40">lane_ok[i] = true</label>
+			<nail x="40" y="-40"/>
+		</transition>
+		<transition id="id12">
+			<source ref="id0"/>
+			<target ref="id4"/>
+			<label kind="assignment" x="-440" y="-235">emergency[i] = true, dist[i] = D_OBSTACLE</label>
+			<nail x="-620" y="-240"/>
+			<nail x="-180" y="-240"/>
+		</transition>
+		<transition id="id13">
+			<source ref="id4"/>
+			<target ref="id5"/>
+			<label kind="assignment" x="-115" y="-160">emergency[i] = false</label>
+		</transition>
+		<transition id="id14">
+			<source ref="id5"/>
+			<target ref="id0"/>
+			<label kind="assignment" x="-315" y="-100">dist[i] = D_SAFE</label>
+			<nail x="40" y="-100"/>
+			<nail x="-620" y="-100"/>
+		</transition>
+	</template>
+	<template>
+		<name>LaneSVM</name>
+		<parameter>const follower_t i</parameter>
+		<declaration>clock t;</declaration>
+		<location id="id15" x="-620" y="90">
+			<name x="-655" y="55">Idle</name>
+		</location>
+		<location id="id16" x="-400" y="90">
+			<name x="-445" y="55">Processing</name>
+			<label kind="invariant" x="-435" y="110">t &lt;= T_CAM</label>
+		</location>
+		<location id="id17" x="-180" y="20">
+			<name x="-215" y="-15">LaneOK</name>
+		</location>
+		<location id="id18" x="-180" y="160">
+			<name x="-225" y="175">LaneLost</name>
+		</location>
+		<init ref="id15"/>
+		<transition id="id19">
+			<source ref="id15"/>
+			<target ref="id16"/>
+			<label kind="assignment" x="-545" y="73">t = 0</label>
+		</transition>
+		<transition id="id20">
+			<source ref="id16"/>
+			<target ref="id17"/>
+			<label kind="guard" x="-340" y="35">lane_ok[i]</label>
+			<label kind="assignment" x="-340" y="52">svm_bad[i] = false</label>
+		</transition>
+		<transition id="id21">
+			<source ref="id16"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-340" y="135">!lane_ok[i]</label>
+			<label kind="assignment" x="-340" y="152">svm_bad[i] = true</label>
+		</transition>
+		<transition id="id22">
+			<source ref="id17"/>
+			<target ref="id15"/>
+			<nail x="-180" y="-20"/>
+			<nail x="-620" y="-20"/>
+		</transition>
+		<transition id="id23">
+			<source ref="id18"/>
+			<target ref="id15"/>
+			<nail x="-180" y="220"/>
+			<nail x="-620" y="220"/>
+		</transition>
+	</template>
+	<template>
+		<name>FollowerControl</name>
+		<parameter>const follower_t i</parameter>
+		<declaration>clock t;</declaration>
+		<location id="id24" x="-620" y="430">
+			<name x="-665" y="395">NormalACC</name>
+			<label kind="invariant" x="-650" y="450">t &lt;= T_CTRL</label>
+		</location>
+		<location id="id25" x="-400" y="300">
+			<name x="-450" y="265">ReduceSpeed</name>
+		</location>
+		<location id="id26" x="-400" y="430">
+			<name x="-440" y="395">CommLost</name>
+			<label kind="invariant" x="-435" y="450">t &lt;= T_TIMEOUT</label>
+		</location>
+		<location id="id27" x="-180" y="430">
+			<name x="-225" y="395">FallbackACC</name>
+			<label kind="invariant" x="-225" y="450">t &lt;= T_FALLBACK</label>
+		</location>
+		<location id="id28" x="40" y="430">
+			<name x="-20" y="395">PrecautionStop</name>
+		</location>
+		<location id="id29" x="-180" y="300">
+			<name x="-235" y="265">EmergencyBrake</name>
+			<label kind="invariant" x="-220" y="320">t &lt;= T_BRAKE</label>
+		</location>
+		<location id="id30" x="260" y="430">
+			<name x="230" y="395">SafeStop</name>
+		</location>
+		<init ref="id24"/>
+		<transition id="id31">
+			<source ref="id24"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-710" y="485">t &gt;= T_CTRL</label>
+			<label kind="assignment" x="-695" y="502">t = 0</label>
+			<nail x="-620" y="520"/>
+			<nail x="-680" y="520"/>
+			<nail x="-680" y="430"/>
+		</transition>
+		<transition id="id32">
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-560" y="345">dist[i] &lt; D_MIN</label>
+			<nail x="-620" y="300"/>
+		</transition>
+		<transition id="id33">
+			<source ref="id25"/>
+			<target ref="id24"/>
+			<label kind="assignment" x="-555" y="285">dist[i] = D_SAFE, t = 0</label>
+			<nail x="-400" y="250"/>
+			<nail x="-620" y="250"/>
+		</transition>
+		<transition id="id34">
+			<source ref="id24"/>
+			<target ref="id26"/>
+			<label kind="guard" x="-550" y="410">!comm_ok[i]</label>
+			<label kind="assignment" x="-545" y="427">t = 0</label>
+		</transition>
+		<transition id="id35">
+			<source ref="id26"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-545" y="465">comm_ok[i]</label>
+			<label kind="assignment" x="-545" y="482">t = 0</label>
+			<nail x="-400" y="500"/>
+			<nail x="-620" y="500"/>
+		</transition>
+		<transition id="id36">
+			<source ref="id26"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-330" y="410">t &gt;= T_TIMEOUT</label>
+			<label kind="assignment" x="-330" y="427">fallback[i] = true, t = 0</label>
+		</transition>
+		<transition id="id37">
+			<source ref="id27"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-430" y="560">comm_ok[i] &amp;&amp; !svm_bad[i]</label>
+			<label kind="assignment" x="-430" y="577">fallback[i] = false, t = 0</label>
+			<nail x="-180" y="560"/>
+			<nail x="-620" y="560"/>
+		</transition>
+		<transition id="id38">
+			<source ref="id27"/>
+			<target ref="id28"/>
+			<label kind="guard" x="-110" y="410">svm_bad[i] || t &gt;= T_FALLBACK</label>
+			<label kind="assignment" x="-80" y="427">t = 0</label>
+		</transition>
+		<transition id="id39">
+			<source ref="id28"/>
+			<target ref="id30"/>
+			<label kind="assignment" x="115" y="410">stopped[i] = true</label>
+		</transition>
+		<transition id="id40">
+			<source ref="id24"/>
+			<target ref="id29"/>
+			<label kind="guard" x="-555" y="320">emergency[i] || svm_bad[i]</label>
+			<label kind="assignment" x="-555" y="337">t = 0</label>
+			<nail x="-620" y="340"/>
+		</transition>
+		<transition id="id41">
+			<source ref="id29"/>
+			<target ref="id30"/>
+			<label kind="guard" x="-30" y="300">t &lt;= T_BRAKE</label>
+			<label kind="assignment" x="-30" y="317">stopped[i] = true</label>
+			<nail x="260" y="300"/>
+		</transition>
+		<transition id="id42">
+			<source ref="id30"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-270" y="640">comm_ok[i] &amp;&amp; !svm_bad[i] &amp;&amp; !emergency[i]</label>
+			<label kind="assignment" x="-270" y="657">stopped[i] = false, fallback[i] = false, t = 0</label>
+			<nail x="260" y="640"/>
+			<nail x="-620" y="640"/>
+		</transition>
+	</template>
+	<system>// Lightweight verification instance:
+// only the first follower is instantiated and executed.
+env0 = LeaderAndSensors(F0);
+lane0 = LaneSVM(F0);
+ctrl0 = FollowerControl(F0);
+
+system env0, lane0, ctrl0;
+
+// To verify the full scaled platoon later, instantiate:
+// env1 = LeaderAndSensors(1); lane1 = LaneSVM(1); ctrl1 = FollowerControl(1);
+// env2 = LeaderAndSensors(2); lane2 = LaneSVM(2); ctrl2 = FollowerControl(2);
+// system env0, env1, env2, lane0, lane1, lane2, ctrl0, ctrl1, ctrl2;</system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment>No permanent deadlock in the control model.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 22:35:13 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] lane0.Processing imply lane0.t &lt;= T_CAM</formula>
+			<comment>SVM/lane decision is bounded by T_CAM.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:47 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] ctrl0.EmergencyBrake imply ctrl0.t &lt;= T_BRAKE</formula>
+			<comment>Emergency braking reaction is bounded.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:48 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] ctrl0.FallbackACC imply fallback[0]</formula>
+			<comment>Fallback flag is active in fallback ACC.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:48 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>A[] ctrl0.SafeStop imply stopped[0]</formula>
+			<comment>SafeStop means the follower is stopped.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:49 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl0.ReduceSpeed</formula>
+			<comment>Distance-keeping behaviour can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:50 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl0.FallbackACC</formula>
+			<comment>Communication-failure fallback can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:51 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl0.PrecautionStop</formula>
+			<comment>Precautionary fallback stop can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 22:16:13 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl0.EmergencyBrake</formula>
+			<comment>Emergency braking can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 22:09:31 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ctrl0.SafeStop</formula>
+			<comment>Safe stop can be reached.</comment>
+			<result outcome="success" type="quality" timestamp="2026-07-09 12:44:53 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>
